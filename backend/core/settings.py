@@ -884,6 +884,20 @@ FIELD_METADATA: dict[str, dict] = {
         "max":         1000,
     },
 
+    # ── Web research ──────────────────────────────────────────────────────────
+    "web_research_enabled": {
+        "label":       "Let agents look things up on the web",
+        "description": "When on, the Researcher can read public web pages you mention and use them to answer.",
+        "type":        "bool",
+        "group":       "rag",
+    },
+    "web_research_auto_fetch": {
+        "label":       "Fetch links automatically",
+        "description": "Open and read web links you paste into chat without being asked.",
+        "type":        "bool",
+        "group":       "rag",
+    },
+
     # ── Memory ────────────────────────────────────────────────────────────────
     "memory_write_gate_enabled": {
         "label":       "Write gate",
