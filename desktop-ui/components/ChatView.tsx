@@ -47,8 +47,8 @@ import {
   deriveWebFetches,
   hostLabel,
   type WebFetchesLive,
-  type WebSource,
 } from "@/components/chat/deriveWebFetches";
+import { WebSourceChips } from "@/components/chat/WebSourceChips";
 import { Timeline, type TimelineVariant } from "@/components/chat/Timeline";
 import { useRoster } from "@/components/chat/useRoster";
 import {
@@ -1886,19 +1886,8 @@ function WebFetchStatus({ webFetches }: { webFetches: WebFetchesLive }) {
         </div>
       )}
       {sources.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {sources.map((s: WebSource) => (
-            <button
-              key={s.url}
-              type="button"
-              title={s.url}
-              onClick={() => System.openUrl(s.url).catch(() => {})}
-              className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-2/60 px-2 py-0.5 text-ink-dim hover:text-ink"
-            >
-              <span aria-hidden>🌐</span>
-              <span className="max-w-[16rem] truncate">{s.title}</span>
-            </button>
-          ))}
+        <div className="mt-1">
+          <WebSourceChips sources={sources} />
         </div>
       )}
     </div>
