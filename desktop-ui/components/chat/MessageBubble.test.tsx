@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 // System.openUrl is the only api/client surface MessageBubble reaches (via the
 // shared WebSourceChips). MessageRenderer pulls in mermaid/katex/highlight.js,
 // so stub it to a plain content node to keep this a focused unit test.
-const openUrl = vi.fn(() => Promise.resolve());
+const openUrl = vi.fn((_url: string) => Promise.resolve());
 vi.mock("@/api/client", () => ({
   System: { openUrl: (url: string) => openUrl(url) },
 }));

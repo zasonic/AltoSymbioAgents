@@ -645,7 +645,7 @@ export interface WebStatus {
   enabled: boolean;
 }
 
-export interface WebFetchToRagResult {
+interface WebFetchToRagResult {
   chunks_added?: number;
   url?: string;
   title?: string;
