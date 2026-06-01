@@ -57,7 +57,7 @@ class WebAPI(BaseAPI):
             max_bytes = 2_000_000
         return timeout, max_bytes
 
-    async def web_fetch(self, url: str, *, use_stealth: bool = False) -> dict:
+    async def web_fetch(self, url: str, use_stealth: bool = False) -> dict:
         """Fetch a URL and return its markdown. Does not touch the RAG index."""
         if not self._enabled():
             return {"error": "Web research is turned off.", "reason": "disabled"}
@@ -85,7 +85,7 @@ class WebAPI(BaseAPI):
             "truncated": result.truncated,
         }
 
-    async def web_fetch_to_rag(self, url: str, *, source: str = "",
+    async def web_fetch_to_rag(self, url: str, source: str = "",
                                use_stealth: bool = False) -> dict:
         """Fetch a URL, security-scan it, and index it into the RAG store."""
         if not self._enabled():
