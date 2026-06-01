@@ -117,3 +117,26 @@ async def test_fetch_to_rag_disabled_when_flag_off(in_memory_db, settings, local
     api = WebAPI(_Facade(settings, RAGIndex(model=None)))
     out = await api.web_fetch_to_rag(local_web_server.url("/"))
     assert out["reason"] == "disabled"
+
+
+def test_fetch_and_index_sync_helper_indexes_real_page(in_memory_db, settings, monkeypatch, local_web_server):
+    """The sync orchestrator helper fetches + scans + indexes a real page."""
+    from services import semantic_search, web_research
+    from services.rag_index import RAGIndex
+
+    monkeypatch.setattr(semantic_search, "_embed_fn", _deterministic_embed)
+    monkeypatch.setattr(semantic_search, "_embed_dim", EMBED_DIM)
+    monkeypatch.setattr(semantic_search, "_initialized", True)
+    settings.set("web_research_allow_private", True)
+
+    rag = RAGIndex(model=None)
+    rag._semantic = semantic_search
+
+    out = web_research.fetch_and_index(local_web_server.url("/"), rag=rag, settings=settings)
+    assert "error" not in out, out
+    assert out["chunks_added"] >= 1
+    assert out["title"] == "Acme Widgets"
+
+    import db
+    row = db.fetchone("SELECT content FROM documents WHERE doc_type = 'web' LIMIT 1")
+    assert row is not None and "Widget 3000" in row["content"]

@@ -591,6 +591,41 @@ class ChatOrchestrator:
             chunks.append(f"[{r['filename']}]\n{extract}")
         return chunks
 
+    def _maybe_autofetch_urls(self, user_message: str, emit_event) -> None:
+        """Fetch + index URLs in the user's message when web research is on.
+
+        Gated on ``web_research_enabled`` + ``web_research_auto_fetch`` (both
+        default off). Best-effort: every failure is swallowed so a bad URL can
+        never break the turn. Emits ``web_fetch`` status so the UI timeline can
+        show "Reading <site>…".
+        """
+        try:
+            if not self._settings.get("web_research_enabled", False):
+                return
+            if not self._settings.get("web_research_auto_fetch", False):
+                return
+        except Exception:  # noqa: BLE001
+            return
+
+        from services import web_research
+
+        rag = getattr(self.memory, "rag", None)
+        if rag is None:
+            return
+        for url in web_research.extract_urls(user_message, limit=3):
+            try:
+                emit_event("web_fetch", {"status": "fetching", "url": url})
+                result = web_research.fetch_and_index(url, rag=rag, settings=self._settings)
+                if result.get("error"):
+                    emit_event("web_fetch", {"status": "error", "url": url, "error": result["error"]})
+                else:
+                    emit_event("web_fetch", {
+                        "status": "done", "url": result.get("url", url),
+                        "title": result.get("title", ""),
+                    })
+            except Exception as exc:  # noqa: BLE001 — never break the turn
+                log.debug("auto-fetch failed for %s: %s", url, exc)
+
     @staticmethod
     def _fetch_image_attachments(conversation_id: str) -> list[dict]:
         """Return image attachments for this conversation as a list of
@@ -1283,6 +1318,13 @@ class ChatOrchestrator:
                 image_attachments = self._fetch_image_attachments(conversation_id)
             except Exception as exc:
                 log.debug("image attachment fetch failed: %s", exc)
+
+        # Web research auto-fetch: if enabled, fetch any URL the user mentioned
+        # and index it BEFORE recall, so the freshly-added page is available to
+        # this same turn's RAG retrieval. Best-effort and flag-gated — a flag-off
+        # turn is unchanged, and any fetch failure is swallowed so the turn
+        # always proceeds (fail-open UX, fail-closed security in web_research).
+        self._maybe_autofetch_urls(user_message, _emit_event)
 
         # Recall memory + build system context. Layer 3: MemoryRecall
         # owns the get_context call, the mem_suffix stitching, the tool

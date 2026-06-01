@@ -325,3 +325,65 @@ async def fetch_url(
     if use_stealth:
         return await _fetch_stealth(url, timeout=timeout, max_bytes=max_bytes, settings=settings)
     return await _fetch_http(url, timeout=timeout, max_bytes=max_bytes, settings=settings)
+
+
+# ── URL extraction + sync fetch-and-index (for the sync orchestrator path) ────
+
+import re as _re
+
+# Plain http(s) URLs; trailing punctuation is trimmed so "see https://x.com."
+# doesn't capture the period.
+_URL_RE = _re.compile(r"https?://[^\s<>\"')\]]+", _re.IGNORECASE)
+
+
+def extract_urls(text: str, *, limit: int = 3) -> list[str]:
+    """Return up to ``limit`` distinct http(s) URLs found in ``text``."""
+    if not text:
+        return []
+    out: list[str] = []
+    for m in _URL_RE.finditer(text):
+        url = m.group(0).rstrip(".,;:!?")
+        if url not in out:
+            out.append(url)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def fetch_and_index(url: str, *, rag, settings, source: str = "") -> dict:
+    """Synchronously fetch ``url``, security-scan it, and index it into ``rag``.
+
+    Sync wrapper for callers outside an event loop (the chat orchestrator runs
+    in a worker thread). Best-effort: returns ``{"error", "reason"}`` rather
+    than raising so a bad URL can never break a chat turn. ``rag`` is any object
+    exposing ``add_text(text, source=, doc_type=)``.
+    """
+    import asyncio
+
+    from services import input_sanitizer
+
+    try:
+        result = asyncio.run(fetch_url(url, settings=settings))
+    except WebFetchError as exc:
+        return {"error": exc.message, "reason": exc.reason}
+    except Exception as exc:  # noqa: BLE001
+        log.debug("fetch_and_index: fetch failed for %s: %s", url, exc)
+        return {"error": "fetch failed", "reason": "transport"}
+
+    content = result.markdown or result.text
+    if not content.strip():
+        return {"error": "empty page", "reason": "empty"}
+    try:
+        scan = input_sanitizer.scan_document(content, filename=result.url)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("fetch_and_index: scan failed for %s: %s", result.url, exc)
+        return {"error": "scan failed", "reason": "scan_failed"}
+    if scan.get("blocked"):
+        return {"error": "blocked by security scan", "reason": "blocked"}
+
+    try:
+        n = rag.add_text(content, source=source or result.url, doc_type="web")
+    except Exception as exc:  # noqa: BLE001
+        log.debug("fetch_and_index: index failed for %s: %s", result.url, exc)
+        return {"error": "index failed", "reason": "index_failed"}
+    return {"chunks_added": n, "url": result.url, "title": result.title}

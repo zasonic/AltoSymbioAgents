@@ -84,3 +84,19 @@ async def test_unavailable_raises(monkeypatch):
     with pytest.raises(wr.WebFetchError) as ei:
         await wr.fetch_url("https://example.com", settings=None)
     assert ei.value.reason == "unavailable"
+
+
+def test_extract_urls_finds_and_trims():
+    text = "See https://example.com/a, and (https://example.org/b). No url here."
+    assert wr.extract_urls(text) == ["https://example.com/a", "https://example.org/b"]
+
+
+def test_extract_urls_dedupes_and_caps():
+    text = "https://x.com https://x.com https://y.com https://z.com https://w.com"
+    out = wr.extract_urls(text, limit=2)
+    assert out == ["https://x.com", "https://y.com"]
+
+
+def test_extract_urls_empty():
+    assert wr.extract_urls("") == []
+    assert wr.extract_urls("nothing to see") == []
